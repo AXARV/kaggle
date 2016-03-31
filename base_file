@@ -10,90 +10,106 @@ import numpy as np
 import csv as csv
 from sklearn.ensemble import RandomForestClassifier
 
-# Data cleanup
-# TRAIN DATA
-train_df = pd.read_csv(path+'train.csv', header=0)        # Load the train file into a dataframe
-train_df.head()
-# I need to convert all strings to integer classifiers.
-# I need to fill in the missing values of the data and make it complete.
-
-# female = 0, Male = 1
-train_df['Gender'] = train_df['Sex'].map( {'female': 0, 'male': 1} ).astype(int)
-
-# Embarked from 'C', 'Q', 'S'
-# Note this is not ideal: in translating categories to numbers, Port "2" is not 2 times greater than Port "1", etc.
-
-# All missing Embarked -> just make them embark from most common place
-if len(train_df.Embarked[ train_df.Embarked.isnull() ]) > 0:
-    train_df.Embarked[ train_df.Embarked.isnull() ] = train_df.Embarked.dropna().mode().values
-
-Ports = list(enumerate(np.unique(train_df['Embarked'])))    # determine all values of Embarked,
-Ports_dict = { name : i for i, name in Ports }              # set up a dictionary in the form  Ports : index
-train_df.Embarked = train_df.Embarked.map( lambda x: Ports_dict[x]).astype(int)     # Convert all Embark strings to int
-
-# All the ages with no data -> make the median of all Ages
-median_age = train_df['Age'].dropna().median()
-if len(train_df.Age[ train_df.Age.isnull() ]) > 0:
-    train_df.loc[ (train_df.Age.isnull()), 'Age'] = median_age #-10
-
-#train_df['Name_len']=len(train_df['Name'])
-
-# Remove the Name column, Cabin, Ticket, and Sex (since I copied and filled it to Gender)
-train_df.head()
-train_df = train_df.drop(['Name', 'Sex', 'Ticket', 'Cabin', 'PassengerId'], axis=1) 
-train_data = train_df.values
-np.random.seed(seed=42)
-train_df['Rand']=np.random.sample([train_df.shape[0]])
-train_df['Rand'].head()
-train_df['Train'] = train_df['Rand'] >=0.7
-train_df['Train'].head()
-train1=train_df[train_df['Train']==0]
-test1=train_df[train_df['Train']==1]
-train1 = train1.drop(['Rand', 'Train'], axis=1) 
-test1 = test1.drop(['Rand', 'Train'], axis=1) 
-train1 = train1.values
-test1 = test1.values
-
-def Gini(y_true, y_pred):
-    # check and get number of samples
-    assert y_true.shape == y_pred.shape
-    n_samples = y_true.shape[0]
+mat_result=np.zeros((3,6))
+seuil=0.51
+for cv in range(10):
+    # Data cleanup
+    # TRAIN DATA
+    train_df = pd.read_csv(path+'train.csv', header=0)        # Load the train file into a dataframe
+    train_df.head()
+    train_df['Survived'].mean()
+    # I need to convert all strings to integer classifiers.
+    # I need to fill in the missing values of the data and make it complete.
     
-    # sort rows on prediction column 
-    # (from largest to smallest)
-    arr = np.array([y_true, y_pred]).transpose()
-    true_order = arr[arr[:,0].argsort()][::-1,0]
-    pred_order = arr[arr[:,1].argsort()][::-1,0]
+    # female = 0, Male = 1
+    train_df['Gender'] = train_df['Sex'].map( {'female': 0, 'male': 1} ).astype(int)
     
-    # get Lorenz curves
-    L_true = np.cumsum(true_order) / np.sum(true_order)
-    L_pred = np.cumsum(pred_order) / np.sum(pred_order)
-    L_ones = np.linspace(1/n_samples, 1, n_samples)
+    # Embarked from 'C', 'Q', 'S'
+    # Note this is not ideal: in translating categories to numbers, Port "2" is not 2 times greater than Port "1", etc.
     
-    # get Gini coefficients (area between curves)
-    G_true = np.sum(L_ones - L_true)
-    G_pred = np.sum(L_ones - L_pred)
-    print 'Gini =' + str(G_pred/G_true)
-    # normalize to true Gini coefficient
-    return G_pred/G_true
+    # All missing Embarked -> just make them embark from most common place
+    if len(train_df.Embarked[ train_df.Embarked.isnull() ]) > 0:
+        train_df.Embarked[ train_df.Embarked.isnull() ] = train_df.Embarked.dropna().mode().values
+    
+    Ports = list(enumerate(np.unique(train_df['Embarked'])))    # determine all values of Embarked,
+    Ports_dict = { name : i for i, name in Ports }              # set up a dictionary in the form  Ports : index
+    train_df.Embarked = train_df.Embarked.map( lambda x: Ports_dict[x]).astype(int)     # Convert all Embark strings to int
+    
+    # All the ages with no data -> make the median of all Ages
+    median_age = train_df['Age'].dropna().median()
+    if len(train_df.Age[ train_df.Age.isnull() ]) > 0:
+        train_df.loc[ (train_df.Age.isnull()), 'Age'] = median_age #-10
+    
+    train_df['Name_len']=len(train_df['Name'])
+    #train_df['Name_par']=('(' in train_df['Name'])*1
+    #train_df['Name_par'].head()
+    
+    
+    # Remove the Name column, Cabin, Ticket, and Sex (since I copied and filled it to Gender)
+    train_df.head()
+    train_df = train_df.drop(['Name', 'Sex', 'Ticket', 'Cabin', 'PassengerId'], axis=1) 
+    train_data = train_df.values
+    np.random.seed(seed=44)
+    train_df['Rand']=np.random.sample([train_df.shape[0]])
+    #train_df['Rand'].head()
+    train_df['Train1'] = (train_df['Rand'] <= cv/10.)*1
+    #train_df['Train1'].head()
+    train_df['Train2'] = (train_df['Rand'] > (cv+1)/10.)*1
+    #train_df['Train2'].head()
+    train_df['Train']=train_df['Train1'] + train_df['Train2']
+    #train_df['Train'].head()
+    train1=train_df[train_df['Train']==1]
+    test1=train_df[train_df['Train']==0]
+    train1 = train1.drop(['Rand', 'Train', 'Train1', 'Train2'], axis=1) 
+    test1 = test1.drop(['Rand', 'Train', 'Train1', 'Train2'], axis=1) 
+    train1 = train1.values
+    test1 = test1.values
+    
+    def Gini(y_true, y_pred):
+        # check and get number of samples
+        assert y_true.shape == y_pred.shape
+        n_samples = y_true.shape[0]
+        
+        # sort rows on prediction column 
+        # (from largest to smallest)
+        arr = np.array([y_true, y_pred]).transpose()
+        true_order = arr[arr[:,0].argsort()][::-1,0]
+        pred_order = arr[arr[:,1].argsort()][::-1,0]
+        
+        # get Lorenz curves
+        L_true = np.cumsum(true_order) / np.sum(true_order)
+        L_pred = np.cumsum(pred_order) / np.sum(pred_order)
+        L_ones = np.linspace(1/n_samples, 1, n_samples)
+        
+        # get Gini coefficients (area between curves)
+        G_true = np.sum(L_ones - L_true)
+        G_pred = np.sum(L_ones - L_pred)
+        print 'Gini =' + str(G_pred/G_true)
+        # normalize to true Gini coefficient
+        return G_pred/G_true
+    
+    
+    for it in [50,100,150]:
+        for deep in [1,2,3,4,5,6]:
+            print 'Training... n_estimator=' + str(it) + ' Deep=' +str(deep)
+            forest = RandomForestClassifier(n_estimators=it,max_depth=deep)
+            forest = forest.fit(train1[0::,1::], train1[0::,0])
+            
+            
+            output = forest.predict(test1[0::,1::]).astype(int)
+            
+            from sklearn.metrics import confusion_matrix
+            
+            output_cont = forest.predict_proba(test1[0::,1::])[0::,1]
+            print confusion_matrix(test1[0::,0], output_cont >=seuil)
+            print 'G_pred =' + str(confusion_matrix(test1[0::,0], output_cont >=seuil)[0,0]+confusion_matrix(test1[0::,0], output_cont >=seuil)[1,1]) 
+            mat_result[(it/50)-1,deep-1]+= (confusion_matrix(test1[0::,0], output_cont >=seuil)[0,0]+confusion_matrix(test1[0::,0], output_cont >=seuil)[1,1])
+            print 'score =' + str(forest.score(test1[0::,1::], test1[0::,0]))
+            
+            
+            Gini(test1[0::,0],output_cont)
 
-for it in [50,100,150]:
-    for deep in [1,2,3,4,5,6]:
-        print 'Training... n_estimator=' + str(it) + ' Deep=' +str(deep)
-        forest = RandomForestClassifier(n_estimators=it,max_depth=deep)
-        forest = forest.fit(train1[0::,1::], train1[0::,0])
-        
-        
-        output = forest.predict(test1[0::,1::]).astype(int)
-        
-        from sklearn.metrics import confusion_matrix
-        print confusion_matrix(test1[0::,0], output)
-        
-        print 'score =' + str(forest.score(test1[0::,1::], test1[0::,0]))
-        
-        output_cont = forest.predict_proba(test1[0::,1::])[0::,1]
-        Gini(test1[0::,0],output_cont)
-        
+print mat_result
 #Training... n_estimator=150 Deep=4
 #[[150  15]
 # [ 33  63]]
@@ -131,6 +147,7 @@ if len(test_df.Fare[ test_df.Fare.isnull() ]) > 0:
 
 # Collect the test data's PassengerIds before dropping it
 ids = test_df['PassengerId'].values
+test_df['Name_len']=len(test_df['Name'])
 # Remove the Name column, Cabin, Ticket, and Sex (since I copied and filled it to Gender)
 test_df = test_df.drop(['Name', 'Sex', 'Ticket', 'Cabin', 'PassengerId'], axis=1) 
 
@@ -142,7 +159,7 @@ test_data = test_df.values
 
 
 print 'Training...'
-forest = RandomForestClassifier(n_estimators=150,max_depth=4)
+forest = RandomForestClassifier(n_estimators=100,max_depth=5)
 forest = forest.fit(train_data[0::,1::], train_data[0::,0] )
 
 data_1 = {'var' : list(test_df.columns.values),
@@ -153,9 +170,23 @@ print  df_val
 
 print 'Predicting...'
 output = forest.predict(test_data).astype(int)
+print output.mean()
+output_cont = forest.predict_proba(test_data)[0::,1]
+output = (output_cont >= 0.53)*1
+print output.mean()
 
+predictions_file = open(path+"myfirstforest_100_5_53.csv", "wb")
+open_file_object = csv.writer(predictions_file)
+open_file_object.writerow(["PassengerId","Survived"])
+open_file_object.writerows(zip(ids, output))
+predictions_file.close()
+print 'Done.'
 
-predictions_file = open(path+"myfirstforest.csv", "wb")
+output_cont = forest.predict_proba(test_data)[0::,1]
+output = (output_cont >= 0.5)*1
+print output.mean()
+
+predictions_file = open(path+"myfirstforest_100_5_50.csv", "wb")
 open_file_object = csv.writer(predictions_file)
 open_file_object.writerow(["PassengerId","Survived"])
 open_file_object.writerows(zip(ids, output))
